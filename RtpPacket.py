@@ -8,7 +8,7 @@ class RtpPacket:
 	def __init__(self):
 		pass
 		
-	def encode(self, version, padding, extension, cc, seqnum, marker, pt, ssrc, payload):
+	def encode(self, version, padding, extension, cc, seqnum,frameNum, marker, pt, ssrc, payload):
         
 		"""Encode the RTP packet with header fields and payload."""
         
@@ -27,12 +27,14 @@ class RtpPacket:
 		header[0] = (header[0] | (cc & 0x0F));                  # 4 bits
 		header[1] = (header[1] | marker << 7);                  # 1 bit
 		header[1] = (header[1] | (pt & 0x7f));                  # 7 bits
-		header[2] = (seqnum & 0xFF00) >> 8;                     # 16 bits total, this is first 8
-		header[3] = (seqnum & 0xFF);                            # second 8
+		header[2] = (frameNum & 0xFF00) >> 8;                     # 16 bits total, this is first 8
+		header[3] = (frameNum & 0xFF);                            # second 8
 		header[4] = (timestamp >> 24);                          # 32 bit timestamp
 		header[5] = (timestamp >> 16) & 0xFF;
-		header[6] = (timestamp >> 8) & 0xFF;
-		header[7] = (timestamp & 0xFF);
+		# header[6] = (timestamp >> 8) & 0xFF;
+		# header[7] = (timestamp & 0xFF);
+		header[6]=(seqnum & 0xFF00) >> 8;
+		header[7]=(seqnum & 0xFF);
 		header[8] = (ssrc >> 24);                               # 32 bit ssrc
 		header[9] = (ssrc >> 16) & 0xFF;
 		header[10] = (ssrc >> 8) & 0xFF;
@@ -54,10 +56,14 @@ class RtpPacket:
 		"""Return RTP version."""
 		return int(self.header[0] >> 6)
 	
+	def frameNum(self):
+		"""Return sequence (frame) number."""
+		frameNum = self.header[2] << 8 | self.header[3]
+		return int(frameNum)
+
 	def seqNum(self):
 		"""Return sequence (frame) number."""
-		seqNum = self.header[2] << 8 | self.header[3]
-		return int(seqNum)
+		return int(self.header[6] << 8 | self.header[7])
 	
 	def timestamp(self):
 		"""Return timestamp."""

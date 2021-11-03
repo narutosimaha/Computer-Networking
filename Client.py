@@ -1,3 +1,4 @@
+import math
 from tkinter import *
 import tkinter.messagebox
 import time
@@ -6,7 +7,7 @@ from tkinter import messagebox
 tkinter.messagebox
 from PIL import Image, ImageTk
 import socket, threading, sys, traceback, os
-
+from datetime import datetime
 from RtpPacket import RtpPacket
 from VideoStream import  VideoStream
 from datetime import timedelta
@@ -22,6 +23,7 @@ class Client:
 	PLAY_STR = 'PLAY'
 	PAUSE_STR = 'PAUSE'
 	TEARDOWN_STR = 'TEARDOWN'
+	DESCRIBE_STR = 'DESCRIBE'
 	FASTFORWARD_STR = 'FASTFORWARD'
 	BACKWARD_STR = 'BACKWARD'
 
@@ -37,6 +39,7 @@ class Client:
 
 	FASTFORWARD = 4
 	BACKWARD = 5
+	DESCRIBE = 6
 
 	RTSP_VER = "RTSP/1.0"
 	TRANSPORT = "RTP/UDP"
@@ -62,6 +65,7 @@ class Client:
 		self.teardownAcked = 0
 		self.connectToServer()
 		self.frameNbr = 0
+		self.frameSeq=0
 		self.count = 0
 
 	def createWidgets(self):
@@ -91,7 +95,13 @@ class Client:
 		self.pause = Button(self.master, width=100, padx=2, pady=3, bd = 0)
 		self.pause['image'] = self.image
 		self.pause["command"] = self.setupAndPlay
-		self.pause.grid(row=1, column=2, columnspan = 2, padx=2, pady=2)
+		self.pause.grid(row=1, column=2, columnspan = 1, padx=2, pady=2)
+
+		self.imageDes = PhotoImage(file="icon/comment.png")
+		self.describe = Button(self.master, width=100, padx=2, pady=3, bd=0)
+		self.describe['image'] = self.imageDes
+		self.describe["command"] = self.describeMedia
+		self.describe.grid(row=1, column=3, columnspan=1, padx=2, pady=10)
 
 
 		# Create Total time button
@@ -119,10 +129,20 @@ class Client:
 	def setupMovie(self):
 		"""Setup button handler."""
 		if self.state == self.INIT:
+			print("\n\n\n******************SETUP REQUEST************************")
 			self.sendRtspRequest(self.SETUP)
+
+	def describeMedia(self):
+		"""Setup button handler."""
+		print("Hey Im here")
+		if self.state == self.READY:
+			print("\n\n\n******************DESCRIBE REQUEST************************")
+			self.sendRtspRequest(self.DESCRIBE)
+
 
 	def exitClient(self):
 		"""Teardown button handler."""
+		print("\n\n\n******************TEARDOWN REQUEST************************")
 		self.sendRtspRequest(self.TEARDOWN)
 		self.master.destroy() # Close the gui window
 		os.remove(CACHE_FILE_NAME + str(self.sessionId) + CACHE_FILE_EXT) # Delete the cache image from video
@@ -130,6 +150,7 @@ class Client:
 	def pauseMovie(self):
 		"""Pause button handler."""
 		if self.state == self.PLAYING:
+			print("\n\n\n******************PAUSE REQUEST************************")
 			self.sendRtspRequest(self.PAUSE)
 
 	def playMovie(self):
@@ -139,20 +160,68 @@ class Client:
 			self.threadlisten.start()
 			self.playEvent = threading.Event()
 			self.playEvent.clear()
+			print("\n\n\n******************PLAY REQUEST************************")
 			self.sendRtspRequest(self.PLAY)
+
+	def fastForward(self):
+		# default is fastForward 3s
+		if self.state == self.PLAYING:
+			print("\n\n\n******************FAST FORWARD REQUEST************************")
+			self.sendRtspRequest(self.FASTFORWARD)
+
+	def fastBackward(self):
+		# default is fastBackward 3s
+		frame_return = 3 * 25
+		if self.state == self.PLAYING:
+			if self.frameNbr <= frame_return:
+				self.frameNbr = 0
+			else:
+				self.frameNbr -= frame_return
+			print("\n\n\n******************FAST BACKWARD REQUEST************************")
+			self.sendRtspRequest(self.BACKWARD)
 
 	def listenRtp(self):
 		"""Listen for RTP packets."""
+		lostFrame = 0
+		# start_time = time.process_time()
+		start_time=datetime.now()
+		begin_time=datetime.now()
+		total_payload = 0
 		while True:
 			try:
+				print("-----------------------------------------------------------------")
 				print("LISTENING...")
 				data = self.rtpSocket.recv(20480)
 				if data:
 					rtpPacket = RtpPacket()
 					rtpPacket.decode(data)
 
-					currFrameNbr = rtpPacket.seqNum()
+					currFrameNbr = rtpPacket.frameNum()
+					currFrameSeq=rtpPacket.seqNum();
 					print ("CURRENT SEQUENCE NUM: " + str(currFrameNbr))
+
+					if currFrameSeq>self.frameSeq: # Discard the late packet
+						# Calculate Video Rate
+						last_time=datetime.now()
+						print(f"Last: {start_time.microsecond/(pow(10,6))}s   Now: {last_time.microsecond/(pow(10,6))}s")
+						interval = (last_time - start_time).total_seconds() + math.exp(-13)
+						start_time = datetime.now()
+						payload_size = sys.getsizeof(rtpPacket.getPayload())
+						payload_size_inKB = float(payload_size / 1024)
+						print(f"Pay Load size:{payload_size_inKB} KB    Interval: {interval}s")
+						print(f"Video rate: {float(payload_size_inKB / interval)} KB/s\n")
+
+						# Calculate RTP packet lose rate
+						lostFrame += currFrameSeq - self.frameSeq - 1
+						print(f"Number of lose frame:{lostFrame}     RTP packet lose rate:{float(100 * (lostFrame / currFrameNbr))}%\n")
+
+						total_payload += payload_size_inKB
+
+						# Calculate Throughput
+						print(f"Total payload size: {total_payload} KB  Execution time:{(last_time-begin_time).total_seconds()}s")
+						print(f"Throughput: {float(total_payload / (last_time-begin_time).total_seconds())} KB/s\n\n\n")
+
+						self.frameSeq = currFrameSeq
 
 					if currFrameNbr > self.frameNbr: # Discard the late packet
 						self.frameNbr = currFrameNbr
@@ -228,6 +297,16 @@ class Client:
 
 			# Keep track of the sent request.
 			self.requestSent = self.SETUP
+
+		elif requestCode == self.DESCRIBE:
+			self.rtspSeq += 1
+
+			# Write the RTSP request to be sent.
+			request = "%s %s %s" % (self.DESCRIBE_STR, self.fileName, self.RTSP_VER)
+			request += "\nCSeq: %d" % self.rtspSeq
+			request += "\nSession: %d" % self.sessionId
+
+			self.requestSent = self.DESCRIBE
 
 			# Play request
 		elif requestCode == self.PLAY and self.state == self.READY:
@@ -340,6 +419,8 @@ class Client:
 						# Open RTP port.
 						self.openRtpPort()
 						threading.Thread(target=self.playMovie).start()
+					elif self.requestSent == self.DESCRIBE:
+						print(f"\nDescribe response: \n{data.decode()}")
 					elif self.requestSent == self.PLAY:
 						self.state = self.PLAYING
 					elif self.requestSent == self.PAUSE:
@@ -469,19 +550,6 @@ class Client:
 		video_time = str(timedelta(seconds=seconds))
 		return video_time
 
-	def fastForward(self):
-		# default is fastForward 3s
-		if self.state == self.PLAYING:
-			self.sendRtspRequest(self.FASTFORWARD)
 
-	def fastBackward(self):
-		# default is fastBackward 3s
-		frame_return = 3 * 25
-		if self.state == self.PLAYING:
-			if self.frameNbr <= frame_return:
-				self.frameNbr = 0
-			else:
-				self.frameNbr -= frame_return
-			self.sendRtspRequest(self.BACKWARD)
 
 

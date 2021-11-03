@@ -10,12 +10,14 @@ class VideoStream:
 		self.index = 0
 		self.fast_forward = 0
 		self.fast_backward = 0
+		self.frameSeq = 0
 
 	def fastForward(self):
 		self.fast_forward += 1
 
 	def fastBackward(self):
 		self.fast_backward += 1
+
 
 	def increaseFrame(self, numFrame):
 		prevData = -1	# For case end of movie
@@ -45,7 +47,7 @@ class VideoStream:
 				self.frameNum -= 1
 
 	def nextFrame(self):
-		""" Fastforward """
+		""" Fast forward """
 		if self.fast_forward > 0:
 			res = self.increaseFrame(self.fast_forward * 3 * 25)
 			self.fast_forward = 0
@@ -68,10 +70,16 @@ class VideoStream:
 			if self.index > len(self.frameList):
 				self.frameList.append(framelength)
 			self.frameNum += 1
+			self.frameSeq += 1
+
 		return data
 
 	def frameNbr(self):
 		"""Get frame number."""
 		return self.frameNum
+
+	def frameSequence(self):
+		"""Get frame sequence."""
+		return self.frameSeq
 
 
