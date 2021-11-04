@@ -307,7 +307,6 @@ class ServerWorker:
 			data = self.clientInfo['videoStream'].nextFrame()
 			if data: 
 				frameNumber = self.clientInfo['videoStream'].frameNbr()
-				print(1000)
 				frameSeq = self.clientInfo['videoStream'].frameSequence()
 				try:
 					address = self.clientInfo['rtspSocket'][1][0]
