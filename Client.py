@@ -198,8 +198,8 @@ class Client:
 
 					currFrameNbr = rtpPacket.frameNum()
 					currFrameSeq=rtpPacket.seqNum()
-					print ("CURRENT SEQUENCE NUM: " + str(currFrameNbr))
 
+					print ("CURRENT SEQUENCE NUM: " + str(currFrameNbr))
 					if currFrameSeq>self.frameSeq: # Discard the late packet
 						# Calculate Video Rate
 						last_time=datetime.now()
@@ -517,6 +517,7 @@ class Client:
 			self.connectToServer()
 			self.frameNbr = 0
 			self.totalTime = 0
+			self.frameSeq=0
 		else:
 			self.fileName = self.getNextFileName(self.fileName)
 
