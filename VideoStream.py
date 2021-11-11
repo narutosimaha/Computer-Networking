@@ -7,7 +7,6 @@ class VideoStream:
 			raise IOError
 		self.frameNum = 0
 		self.frameList = []
-		self.index = 0
 		self.fast_forward = 0
 		self.fast_backward = 0
 		self.frameSeq = 0
@@ -27,24 +26,21 @@ class VideoStream:
 				frameLength = int(data)
 				data = self.file.read(frameLength)
 				self.frameNum += 1
-				self.index += 1
 				prevData = data
-				if self.index > len(self.frameList):
+				if self.frameNum > len(self.frameList):
 					self.frameList.append(frameLength)
 			else:
 				return prevData # Because read end of file
 		return -1
 
 	def decreaseFrame(self, numFrame):
-		if numFrame >= self.index:	# Backward to beginning of file
+		if numFrame >= self.frameNum:	# Backward to beginning of file
 			self.file.seek(0, 0)
-			self.index = 0
 			self.frameNum = 0
 		else:
 			for i in range(numFrame):
-				self.index -= 1
-				self.file.seek(-5 - self.frameList[self.index], 1)
 				self.frameNum -= 1
+				self.file.seek(-5 - self.frameList[self.frameNum], 1)
 
 	def nextFrame(self):
 		""" Fast forward """
@@ -55,7 +51,7 @@ class VideoStream:
 				self.frameNum += 1
 				return res
 
-		""" Fast backword"""
+		""" Fast backward"""
 		if self.fast_backward > 0:
 			self.decreaseFrame(self.fast_backward * 3 * 25)
 			self.fast_backward = 0
@@ -64,12 +60,12 @@ class VideoStream:
 		data = self.file.read(5) # Get the framelength from the first 5 bits
 		if data:
 			framelength = int(data)
-			self.index += 1
+			self.frameNum += 1
 			# Read the current frame
 			data = self.file.read(framelength)
-			if self.index > len(self.frameList):
+			if self.frameNum > len(self.frameList):
 				self.frameList.append(framelength)
-			self.frameNum += 1
+
 			self.frameSeq += 1
 
 		return data

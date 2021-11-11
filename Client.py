@@ -10,7 +10,6 @@ import socket, threading, sys, traceback, os
 from datetime import datetime
 from RtpPacket import RtpPacket
 from VideoStream import  VideoStream
-from datetime import timedelta
 
 CACHE_FILE_NAME = "cache-"
 CACHE_FILE_EXT = ".jpg"
@@ -47,8 +46,6 @@ class Client:
 	second = 0
 	minute = 0
 	hour = 0
-	totalTime = 0
-
 
 	# Initiation..
 	def __init__(self, master, serveraddr, serverport, rtpport, filename):
@@ -66,7 +63,7 @@ class Client:
 		self.connectToServer()
 		self.frameNbr = 0
 		self.frameSeq=0
-		self.count = 0
+		self.totalTime = 0
 
 	def createWidgets(self):
 		"""Build GUI."""
@@ -171,7 +168,7 @@ class Client:
 
 	def fastBackward(self):
 		# default is fastBackward 3s
-		frame_return = 3 * 25
+		frame_return = 3 * 25 + 2
 		if self.state == self.PLAYING:
 			if self.frameNbr <= frame_return:
 				self.frameNbr = 0
@@ -197,7 +194,7 @@ class Client:
 					rtpPacket.decode(data)
 
 					currFrameNbr = rtpPacket.frameNum()
-					currFrameSeq=rtpPacket.seqNum()
+					currFrameSeq = rtpPacket.seqNum()
 
 					print ("CURRENT SEQUENCE NUM: " + str(currFrameNbr))
 					if currFrameSeq>self.frameSeq: # Discard the late packet
@@ -262,7 +259,6 @@ class Client:
 			else:
 				self.Timelabel.config(str(self.minute) + " : " + str(self.second))
 
-		self.totalTime =self.getDurationTime()
 		self.Totallabel.config(text = self.totalTime)
 
 		self.label.configure(image = photo, height=288)
@@ -384,7 +380,7 @@ class Client:
 	def recvRtspReply(self):
 		"""Receive RTSP reply from the server."""
 		while True:
-			reply = self.rtspSocket.recv(1024)
+			reply = self.rtspSocket.recv(4096)
 
 			if reply:
 				self.parseRtspReply(reply)
@@ -411,6 +407,7 @@ class Client:
 			if self.sessionId == session:
 				if int(lines[0].split(' ')[1]) == 200:
 					if self.requestSent == self.SETUP:
+						self.totalTime = str(lines[3].split(' ')[1])
 
 						# Update RTSP state.
 						self.state = self.READY
@@ -540,16 +537,7 @@ class Client:
 		else:
 			self.fileName = self.getPreFileName(self.fileName)
 
-	def getDurationTime(self):
-		# Get duration of video
-		video = VideoStream(self.fileName)
-		while video.nextFrame():
-			pass
-		totalFrame = video.frameNbr()
-		fps = 25 # Declare in ServerWorker.py sendRtp() function | fps = 1/0.04
-		seconds = totalFrame / fps
-		video_time = str(timedelta(seconds=seconds))
-		return video_time
+
 
 
 
